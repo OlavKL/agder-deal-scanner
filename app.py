@@ -248,6 +248,90 @@ with left_top:
     st.dataframe(equity_df, use_container_width=True, hide_index=True)
 
 with right_top:
+    st.subheader("Total EK for å lukke kjøpet")
+
+    ek_krav = required_equity_base
+    omkost = closing_costs
+    ekstra_ek = purchase_gap_due_to_loan_limit
+
+    fig, ax = plt.subplots(figsize=(5, 6))
+
+    ax.bar(
+        ["Totalt EK-behov"],
+        [ek_krav],
+        label="EK-krav"
+    )
+
+    ax.bar(
+        ["Totalt EK-behov"],
+        [omkost],
+        bottom=[ek_krav],
+        label="Omkostninger / dokumentavgift"
+    )
+
+    ax.bar(
+        ["Totalt EK-behov"],
+        [ekstra_ek],
+        bottom=[ek_krav + omkost],
+        label="Ekstra EK pga. lånegrense"
+    )
+
+    total_height = ek_krav + omkost + ekstra_ek
+
+    ax.text(
+        0,
+        total_height + max(total_height * 0.01, 1000),
+        format_nok(total_height),
+        ha="center",
+        va="bottom",
+        fontsize=11,
+        fontweight="bold"
+    )
+
+    # Tekst inni hver del av søylen
+    if ek_krav > 0:
+        ax.text(
+            0,
+            ek_krav / 2,
+            f"EK-krav\n{format_nok(ek_krav)}",
+            ha="center",
+            va="center",
+            color="white",
+            fontsize=10,
+            fontweight="bold"
+        )
+
+    if omkost > 0:
+        ax.text(
+            0,
+            ek_krav + omkost / 2,
+            f"Omkost\n{format_nok(omkost)}",
+            ha="center",
+            va="center",
+            color="white",
+            fontsize=10,
+            fontweight="bold"
+        )
+
+    if ekstra_ek > 0:
+        ax.text(
+            0,
+            ek_krav + omkost + ekstra_ek / 2,
+            f"Ekstra EK\n{format_nok(ekstra_ek)}",
+            ha="center",
+            va="center",
+            color="white",
+            fontsize=10,
+            fontweight="bold"
+        )
+
+    ax.set_ylabel("Beløp (kr)")
+    ax.set_title("Sammensetning av EK-behov")
+    ax.legend(loc="upper left")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    st.pyplot(fig)
     st.subheader("Søylediagram: total EK-belastning")
 
     chart_labels = [
