@@ -1,19 +1,16 @@
-import math
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Utleiekalkulator", layout="wide")
 
 st.title("Utleiekalkulator")
-st.write("Beregn egenkapital, lånekostnader og netto kontantstrøm før skatt.")
+st.write("Beregn egenkapital, lånekostnader, total EK-belastning og netto kontantstrøm før skatt.")
 
 # -------------------------
 # Hjelpefunksjoner
 # -------------------------
 def annuity_payment(principal: float, annual_rate_percent: float, years: int) -> float:
-    """
-    Beregner fast månedlig terminbeløp for annuitetslån.
-    """
     months = years * 12
     monthly_rate = annual_rate_percent / 100 / 12
 
@@ -28,9 +25,6 @@ def annuity_payment(principal: float, annual_rate_percent: float, years: int) ->
 
 
 def serial_schedule_first_month(principal: float, annual_rate_percent: float, years: int) -> tuple[float, float, float]:
-    """
-    Returnerer første måneds totalbeløp, avdrag og renter for serielån.
-    """
     months = years * 12
     monthly_rate = annual_rate_percent / 100 / 12
 
@@ -45,9 +39,6 @@ def serial_schedule_first_month(principal: float, annual_rate_percent: float, ye
 
 
 def serial_schedule_last_month(principal: float, annual_rate_percent: float, years: int) -> tuple[float, float, float]:
-    """
-    Returnerer siste måneds totalbeløp, avdrag og renter for serielån.
-    """
     months = years * 12
     monthly_rate = annual_rate_percent / 100 / 12
 
@@ -63,7 +54,8 @@ def serial_schedule_last_month(principal: float, annual_rate_percent: float, yea
 
 
 def format_nok(value: float) -> str:
-    return f"{value:,.0f} kr".replace(",", " ")
+    sign = "-" if value < 0 else ""
+    return f"{sign}{abs(value):,.0f} kr".replace(",", " ")
 
 
 # -------------------------
@@ -86,8 +78,16 @@ equity_percent = st.sidebar.slider(
     step=1,
 )
 
+max_ltv_percent = st.sidebar.slider(
+    "Maks belåning (%)",
+    min_value=0,
+    max_value=100,
+    value=85,
+    step=1,
+)
+
 closing_cost_percent = st.sidebar.number_input(
-    "Omkostninger (%)",
+    "Omkostninger / dokumentavgift (%)",
     min_value=0.0,
     max_value=20.0,
     value=2.5,
@@ -151,15 +151,28 @@ repayment_years = st.sidebar.number_input(
 )
 
 # -------------------------
-# Beregninger
+# Beregninger: EK og finansiering
 # -------------------------
 closing_costs = purchase_price * (closing_cost_percent / 100)
-equity_required = purchase_price * (equity_percent / 100)
-total_equity_needed = equity_required + closing_costs
-loan_amount = purchase_price - equity_required
+required_equity_base = purchase_price * (equity_percent / 100)
 
+max_loan_amount = purchase_price * (max_ltv_percent / 100)
+purchase_gap_due_to_loan_limit = max(0, purchase_price - max_loan_amount - required_equity_base)
+
+minimum_cash_needed_to_close = purchase_price + closing_costs - max_loan_amount
+
+# Total egenkapital som faktisk må inn for å gjennomføre kjøpet:
+# enten ordinært EK-krav + omkostninger, eller mer hvis lånet er mer begrenset
+total_equity_needed = required_equity_base + closing_costs + purchase_gap_due_to_loan_limit
+
+# Faktisk lånebeløp ved kjøpet
+loan_amount = min(max_loan_amount, purchase_price)
+
+# -------------------------
+# Beregninger: drift og yield
+# -------------------------
 annual_rent = monthly_rent * 12
-gross_yield_percent = (annual_rent / purchase_price * 100) if purchase_price > 0 else 0
+gross_yield_percent = (annual_rent / purchase_price * 100) if purchase_price > 0 else 0.0
 
 monthly_operating_costs = electricity + common_costs + municipal_fees + other_costs
 
@@ -182,7 +195,6 @@ else:
 
 monthly_cashflow_before_tax = monthly_rent - monthly_operating_costs - monthly_loan_cost
 annual_cashflow_before_tax = monthly_cashflow_before_tax * 12
-
 break_even_rent = monthly_operating_costs + monthly_loan_cost
 
 # -------------------------
@@ -194,7 +206,7 @@ with col1:
     st.metric("Kjøpesum", format_nok(purchase_price))
 
 with col2:
-    st.metric("Egenkapital", format_nok(equity_required))
+    st.metric("Maks lån", format_nok(max_loan_amount))
 
 with col3:
     st.metric("Omkostninger", format_nok(closing_costs))
@@ -205,7 +217,68 @@ with col4:
 st.divider()
 
 # -------------------------
-# Lån og kontantstrøm
+# EK-struktur + diagram
+# -------------------------
+left_top, right_top = st.columns([1, 1])
+
+with left_top:
+    st.subheader("EK-struktur")
+
+    equity_df = pd.DataFrame(
+        {
+            "Post": [
+                "EK-krav",
+                "Omkostninger / dokumentavgift",
+                "Ekstra EK pga. lånebegrensning",
+                "Totalt EK-behov",
+                "Maks lån",
+                "Minimum kontantbehov for å lukke kjøpet",
+            ],
+            "Verdi": [
+                format_nok(required_equity_base),
+                format_nok(closing_costs),
+                format_nok(purchase_gap_due_to_loan_limit),
+                format_nok(total_equity_needed),
+                format_nok(max_loan_amount),
+                format_nok(minimum_cash_needed_to_close),
+            ],
+        }
+    )
+
+    st.dataframe(equity_df, use_container_width=True, hide_index=True)
+
+with right_top:
+    st.subheader("Søylediagram: total EK-belastning")
+
+    chart_labels = [
+        "EK-krav",
+        "Omkost",
+        "Ekstra EK\nlånegrense",
+    ]
+    chart_values = [
+        required_equity_base,
+        closing_costs,
+        purchase_gap_due_to_loan_limit,
+    ]
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    bars = ax.bar(chart_labels, chart_values)
+    ax.set_ylabel("Beløp (kr)")
+    ax.set_title("Komponenter i total EK-belastning")
+
+    ax.bar_label(
+        bars,
+        labels=[format_nok(v) for v in chart_values],
+        padding=3,
+        fontsize=9,
+    )
+
+    st.pyplot(fig)
+
+st.divider()
+
+# -------------------------
+# Låneberegning og kontantstrøm
 # -------------------------
 left, right = st.columns([1.2, 1])
 
@@ -232,7 +305,7 @@ with left:
             }
         )
     else:
-        last_total, _, last_interest = serial_schedule_last_month(loan_amount, interest_rate, repayment_years)
+        last_total, _, _ = serial_schedule_last_month(loan_amount, interest_rate, repayment_years)
 
         loan_df = pd.DataFrame(
             {
@@ -299,9 +372,16 @@ with right:
 st.divider()
 
 # -------------------------
-# Enkel vurdering
+# Oppsummering
 # -------------------------
 st.subheader("Oppsummering")
+
+if purchase_gap_due_to_loan_limit > 0:
+    st.warning(
+        f"Lånegrensen gjør at du må skyte inn ekstra {format_nok(purchase_gap_due_to_loan_limit)} utover ordinært EK-krav."
+    )
+else:
+    st.success("Maks belåning er høy nok til å dekke kjøpet innenfor valgt EK-krav.")
 
 if monthly_cashflow_before_tax > 0:
     st.success(
@@ -317,6 +397,9 @@ else:
 st.write(
     f"""
 - **Lånebeløp:** {format_nok(loan_amount)}
+- **EK-krav:** {format_nok(required_equity_base)}
+- **Omkostninger:** {format_nok(closing_costs)}
+- **Ekstra EK pga. lånegrense:** {format_nok(purchase_gap_due_to_loan_limit)}
 - **Totalt EK-behov:** {format_nok(total_equity_needed)}
 - **Månedlige driftskostnader ekskl. lån:** {format_nok(monthly_operating_costs)}
 - **Break-even leie:** {format_nok(break_even_rent)} per måned
@@ -327,17 +410,21 @@ st.write(
 st.divider()
 
 # -------------------------
-# Ordforklaring
+# Forklaringer
 # -------------------------
 with st.expander("Hva betyr tallene?"):
     st.write(
         """
-**Totalt EK-behov** = egenkapital + omkostninger.
+**EK-krav** = prosentandel av kjøpesummen du må dekke med egenkapital.
+
+**Omkostninger / dokumentavgift** = transaksjonskostnader som kommer i tillegg til kjøpesummen.
+
+**Ekstra EK pga. lånebegrensning** = ekstra kontanter du må legge inn hvis valgt maks belåning er lavere enn det som trengs for å finansiere kjøpet.
+
+**Totalt EK-behov** = EK-krav + omkostninger + eventuelt ekstra tilskudd fordi lånet ikke dekker nok.
 
 **Netto kontantstrøm før skatt** = leie minus lånekostnader og øvrige månedlige kostnader.
 
 **Break-even leie** = hvor høy leien må være for at kontantstrøm før skatt blir 0.
-
-**Brutto yield** = årlig leie delt på kjøpesum.
 """
     )
