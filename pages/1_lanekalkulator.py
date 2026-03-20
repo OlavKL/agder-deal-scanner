@@ -221,15 +221,22 @@ st.divider()
 # -------------------------
 st.subheader("Terminbeløp over tid")
 
-fig1, ax1 = plt.subplots(figsize=(10, 5))
-ax1.plot(ann_df["År"], ann_df["Terminbeløp"], label="Annuitetslån")
-ax1.plot(ser_df["År"], ser_df["Terminbeløp"], label="Serielån")
+fig1, ax1 = plt.subplots(figsize=(11, 5.5))
+ax1.plot(ann_df["År"], ann_df["Terminbeløp"], label="Annuitetslån", linewidth=2)
+ax1.plot(ser_df["År"], ser_df["Terminbeløp"], label="Serielån", linewidth=2)
+
 ax1.set_xlabel("År")
 ax1.set_ylabel("Beløp (kr)")
 ax1.set_title("Terminbeløp over tid")
+
+ax1.set_xlim(0, repayment_years)
+ax1.set_xticks(range(0, repayment_years + 1, 5))
+ax1.grid(True, linestyle="--", alpha=0.5)
+
 ax1.legend()
 ax1.spines["top"].set_visible(False)
 ax1.spines["right"].set_visible(False)
+
 st.pyplot(fig1)
 
 st.divider()
