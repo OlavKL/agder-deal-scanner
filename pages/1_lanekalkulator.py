@@ -249,11 +249,33 @@ st.subheader("Renter og avdrag over tid")
 
 fig2, ax2 = plt.subplots(figsize=(11, 5.5))
 
-ax2.plot(ann_df["År"], ann_df["Renter"], label="Annuitet - renter", linewidth=2)
-ax2.plot(ann_df["År"], ann_df["Avdrag"], label="Annuitet - avdrag", linewidth=2)
+# Farger
+ann_color = "#1f77b4"   # blå
+ser_color = "#ff7f0e"   # oransje
 
-ax2.plot(ser_df["År"], ser_df["Renter"], label="Serie - renter", linewidth=2)
-ax2.plot(ser_df["År"], ser_df["Avdrag"], label="Serie - avdrag", linewidth=2)
+# Annuitet
+ax2.plot(ann_df["År"], ann_df["Renter"],
+         label="Annuitet - renter",
+         color=ann_color,
+         linewidth=2)
+
+ax2.plot(ann_df["År"], ann_df["Avdrag"],
+         label="Annuitet - avdrag",
+         color=ann_color,
+         linestyle="--",
+         linewidth=2)
+
+# Serie
+ax2.plot(ser_df["År"], ser_df["Renter"],
+         label="Serie - renter",
+         color=ser_color,
+         linewidth=2)
+
+ax2.plot(ser_df["År"], ser_df["Avdrag"],
+         label="Serie - avdrag",
+         color=ser_color,
+         linestyle="--",
+         linewidth=2)
 
 ax2.set_xlabel("År")
 ax2.set_ylabel("Beløp (kr)")
