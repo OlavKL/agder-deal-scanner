@@ -276,7 +276,6 @@ with col1:
     st.metric(
         "Kjøpesum",
         format_mill(purchase_price),
-        help=format_nok(purchase_price)
     )
 
 with col2:
