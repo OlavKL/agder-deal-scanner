@@ -278,7 +278,6 @@ with col1:
         help=format_nok(purchase_price)
     )
 
-    st.caption(f"Kontantbehov: {format_nok(total_equity_needed)}")
 
 with col2:
    st.metric(
