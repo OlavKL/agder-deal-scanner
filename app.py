@@ -299,9 +299,7 @@ with col5:
         help="Antall rentehopp (0,25 %-poeng økninger) en tåler før månedlig netto kontantstrøm blir negativ."
     )
 
-st.caption(
-    f"Rentehopp = 0,25 %-poeng. Med dagens forutsetninger tåler caset rente opp til ca. {max_tolerated_nominal_rate:.2f} % nominell rente før netto månedlig kontantstrøm blir negativ."
-)
+
 
 st.divider()
 
