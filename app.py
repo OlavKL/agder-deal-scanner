@@ -270,9 +270,9 @@ with col1:
 
 with col2:
    st.metric(
-    "Yield",
+    "Brutto yield",
     f"{gross_yield_percent:.2f} %",
-    help="Årlig leie (månedlig leie × 12) delt på kjøpesum + omkostninger."
+    help="Årlig leie (månedlig leie × 12) delt på kjøpesum + omkostninger. Løpende kostnader er ikke inkludert."
 )
 
 with col3:
