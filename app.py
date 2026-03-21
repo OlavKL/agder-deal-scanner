@@ -218,8 +218,9 @@ else:
     nominal_rate = nominal_rate * 100
 
 annual_rent = monthly_rent * 12
-gross_yield_percent = (annual_rent / purchase_price * 100) if purchase_price > 0 else 0.0
-
+gross_yield_percent = (
+    annual_rent / (purchase_price + closing_costs) * 100
+) if (purchase_price + closing_costs) > 0 else 0.0
 monthly_operating_costs = electricity + common_costs + municipal_fees + other_costs
 
 if loan_type == "Annuitetslån":
@@ -268,7 +269,11 @@ with col1:
     st.metric("Kjøpesum", format_nok(purchase_price))
 
 with col2:
-    st.metric("Brutto yield", f"{gross_yield_percent:.2f} %")
+   st.metric(
+    "Yield",
+    f"{gross_yield_percent:.2f} %",
+    help="Årlig leie (månedlig leie × 12) delt på kjøpesum + omkostninger."
+)
 
 with col3:
     st.metric("Break-even leie", format_nok(break_even_rent))
@@ -481,7 +486,7 @@ with right:
                 "Netto kontantstrøm per måned",
                 "Netto kontantstrøm per år",
                 "Break-even leie per måned",
-                "Brutto yield",
+                "Yield",
             ],
             "Verdi": [
                 format_nok(monthly_rent),
@@ -552,7 +557,7 @@ st.divider()
 with st.expander("Hva betyr tallene?"):
     st.write(
         """
-**Brutto yield** = årlig leieinntekt delt på kjøpesum.
+**Yield** = årlig leieinntekt (månedlig leie × 12) delt på kjøpesum + omkostninger.
 
 **Break-even leie** = hvor høy leien må være for at kontantstrøm før skatt blir 0.
 
