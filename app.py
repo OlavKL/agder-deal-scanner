@@ -339,15 +339,7 @@ with left_top:
 
     total_height = ek_krav + omkost + ekstra_ek
 
-    ax.text(
-        0,
-        total_height + max(total_height * 0.01, 1000),
-        format_nok(total_height),
-        ha="center",
-        va="bottom",
-        fontsize=11,
-        fontweight="bold"
-    )
+   
 
     if ek_krav > 0:
         ax.text(
@@ -386,7 +378,6 @@ with left_top:
         )
 
     ax.set_ylabel("Beløp (kr)")
-    ax.set_title("Sammensetning av EK-behov")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
