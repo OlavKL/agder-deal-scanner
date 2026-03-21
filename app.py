@@ -410,7 +410,6 @@ with right_top:
 
     ax.set_ylabel("Beløp (kr)")
     ax.set_title("Sammensetning av EK-behov")
-    ax.legend(loc="upper left")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
