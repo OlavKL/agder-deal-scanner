@@ -270,8 +270,7 @@ max_tolerated_nominal_rate = nominal_rate + rate_hikes_tolerated * 0.25
 # -------------------------
 st.subheader("Nøkkeltall")
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
-
+col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
     st.metric(
         "Kjøpesum",
@@ -279,31 +278,29 @@ with col1:
         help=format_nok(purchase_price)
     )
 
-with col2:
-    st.metric(
-        "Kontantbehov",
-        format_nok(total_equity_needed),
-        help="Total kapital du må ha tilgjengelig for å gjennomføre kjøpet (egenkapital + omkostninger + eventuell ekstra EK pga. lånebegrensning)."
+    st.caption(
+        f"Kontantbehov: {format_nok(total_equity_needed)}"
     )
 
-with col3:
+
+with col2:
    st.metric(
     "Brutto yield",
     f"{gross_yield_percent:.2f} %",
     help="(Månedlig leie × 12) / (kjøpesum + omkostninger). Løpende kostnader er ikke inkludert."
 )
 
-with col4:
+with col3:
     st.metric("Break-even leie", format_nok(break_even_rent))
 
-with col5:
+with col4:
     st.metric(
         "Netto kontantstrøm / mnd",
         format_nok(monthly_cashflow_before_tax),
         help="Leie minus alle kostnader inkludert strøm, felleskostnader, avgifter og hele terminbeløpet på lånet (både renter og avdrag). Viser faktisk penger inn/ut av konto per måned."
     )
 
-with col6:
+with col5:
     st.metric(
         "Rente-stresstest",
         f"{rate_hikes_tolerated} stk",
