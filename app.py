@@ -163,7 +163,7 @@ repayment_years = st.sidebar.number_input(
 closing_costs = purchase_price * (closing_cost_percent / 100)
 required_equity_base = purchase_price * (equity_percent / 100)
 
-max_loan_amount = purchase_price * (max_ltv_percent / 100)
+max_ltv_percent = (max_loan_amount / purchase_price * 100) if purchase_price > 0 else 0
 purchase_gap_due_to_loan_limit = max(0, purchase_price - max_loan_amount - required_equity_base)
 
 minimum_cash_needed_to_close = purchase_price + closing_costs - max_loan_amount
