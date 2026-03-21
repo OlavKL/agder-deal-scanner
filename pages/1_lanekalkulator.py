@@ -230,7 +230,7 @@ ax1.set_ylabel("Beløp (kr)")
 ax1.set_title("Terminbeløp over tid")
 
 ax1.set_xlim(0, repayment_years)
-ax1.set_xticks(range(0, repayment_years + 1, 5))
+ax1.set_xticks(range(0, repayment_years + 1, 1))
 ax1.grid(True, linestyle="--", alpha=0.5)
 
 ax1.legend()
@@ -282,7 +282,7 @@ ax2.set_ylabel("Beløp (kr)")
 ax2.set_title("Renter og avdrag over hele låneperioden")
 
 ax2.set_xlim(0, repayment_years)
-ax2.set_xticks(range(0, repayment_years + 1, 5))
+ax2.set_xticks(range(0, repayment_years + 1, 1))
 ax2.grid(True, linestyle="--", alpha=0.5)
 
 ax2.legend()
