@@ -249,33 +249,42 @@ st.subheader("Renter og avdrag over tid")
 
 fig2, ax2 = plt.subplots(figsize=(11, 5.5))
 
-# Farger
-ann_color = "#1f77b4"   # blå
-ser_color = "#ff7f0e"   # oransje
+ann_color = "#1f77b4"
+ser_color = "#ff7f0e"
 
-# Annuitet
-ax2.plot(ann_df["År"], ann_df["Renter"],
-         label="Annuitet - renter",
-         color=ann_color,
-         linewidth=2)
+ax2.plot(
+    ann_df["År"],
+    ann_df["Renter"],
+    label="Annuitet - renter",
+    color=ann_color,
+    linewidth=2
+)
 
-ax2.plot(ann_df["År"], ann_df["Avdrag"],
-         label="Annuitet - avdrag",
-         color=ann_color,
-         linestyle="--",
-         linewidth=2)
+ax2.plot(
+    ann_df["År"],
+    ann_df["Avdrag"],
+    label="Annuitet - avdrag",
+    color=ann_color,
+    linestyle="--",
+    linewidth=2
+)
 
-# Serie
-ax2.plot(ser_df["År"], ser_df["Renter"],
-         label="Serie - renter",
-         color=ser_color,
-         linewidth=2)
+ax2.plot(
+    ser_df["År"],
+    ser_df["Renter"],
+    label="Serie - renter",
+    color=ser_color,
+    linewidth=2
+)
 
-ax2.plot(ser_df["År"], ser_df["Avdrag"],
-         label="Serie - avdrag",
-         color=ser_color,
-         linestyle="--",
-         linewidth=2)
+ax2.plot(
+    ser_df["År"],
+    ser_df["Avdrag"],
+    label="Serie - avdrag",
+    color=ser_color,
+    linestyle="--",
+    linewidth=2
+)
 
 ax2.set_xlabel("År")
 ax2.set_ylabel("Beløp (kr)")
@@ -290,6 +299,41 @@ ax2.spines["top"].set_visible(False)
 ax2.spines["right"].set_visible(False)
 
 st.pyplot(fig2)
+
+st.divider()
+
+
+# -------------------------
+# Restgjeld etter valgt antall år
+# -------------------------
+st.subheader("Restgjeld etter valgt antall år")
+
+selected_year = st.slider(
+    "Velg antall år",
+    min_value=1,
+    max_value=int(repayment_years),
+    value=min(5, int(repayment_years)),
+    step=1
+)
+
+selected_month = selected_year * 12
+
+ann_remaining_balance = ann_df.iloc[selected_month - 1]["Restgjeld"] if selected_month <= len(ann_df) else 0
+ser_remaining_balance = ser_df.iloc[selected_month - 1]["Restgjeld"] if selected_month <= len(ser_df) else 0
+
+col_a, col_b = st.columns(2)
+
+with col_a:
+    st.metric(
+        f"Annuitetslån – restgjeld etter {selected_year} år",
+        format_nok(ann_remaining_balance)
+    )
+
+with col_b:
+    st.metric(
+        f"Serielån – restgjeld etter {selected_year} år",
+        format_nok(ser_remaining_balance)
+    )
 
 st.divider()
 
