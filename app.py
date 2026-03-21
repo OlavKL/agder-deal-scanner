@@ -240,22 +240,24 @@ with left_top:
 
     equity_df = pd.DataFrame(
         {
-            "Post": [
-                "EK-krav",
-                "Omkostninger / dokumentavgift",
-                "Ekstra EK pga. lånebegrensning",
-                "Totalt EK-behov",
-                "Maks lån",
-                "Minimum kontantbehov for å lukke kjøpet",
-            ],
-            "Verdi": [
-                format_nok(required_equity_base),
-                format_nok(closing_costs),
-                format_nok(purchase_gap_due_to_loan_limit),
-                format_nok(total_equity_needed),
-                format_nok(max_loan_amount),
-                format_nok(minimum_cash_needed_to_close),
-            ],
+           "Post": [
+    "EK-krav",
+    "Omkostninger / dokumentavgift",
+    "Ekstra EK pga. lånebegrensning",
+    "Totalt EK-behov",
+    "Maks lån",
+    "Belåningsgrad",
+    "Minimum kontantbehov for å lukke kjøpet",
+],
+"Verdi": [
+    format_nok(required_equity_base),
+    format_nok(closing_costs),
+    format_nok(purchase_gap_due_to_loan_limit),
+    format_nok(total_equity_needed),
+    format_nok(max_loan_amount),
+    f"{max_ltv_percent:.1f} %",
+    format_nok(minimum_cash_needed_to_close),
+],
         }
     )
 
