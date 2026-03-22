@@ -126,59 +126,79 @@ def get_remaining_debt(loan_df: pd.DataFrame, year: int, start_debt: float) -> f
 
 
 # -------------------------
-# Inntekter
+# Sidebar: Inntekter
 # -------------------------
 st.sidebar.header("Inntekter")
 
-if "income_count" not in st.session_state:
-    st.session_state.income_count = 1
+if "incomes" not in st.session_state:
+    st.session_state.incomes = [
+        {"name": "Inntekt 1", "amount": 300_000, "period": "Årlig"}
+    ]
 
 income_rows = []
 total_annual_income = 0.0
 
-for i in range(st.session_state.income_count):
+remove_income_idx = None
+
+for i, income in enumerate(st.session_state.incomes):
     st.sidebar.markdown(f"**Inntekt {i+1}**")
 
-    income_name = st.sidebar.text_input(
+    income["name"] = st.sidebar.text_input(
         f"Navn {i}",
-        value=f"Inntekt {i+1}",
+        value=income["name"],
         key=f"income_name_{i}",
         label_visibility="collapsed"
     )
 
-    income_amount = st.sidebar.number_input(
+    income["amount"] = st.sidebar.number_input(
         f"Beløp {i}",
         min_value=0,
-        value=300_000 if i == 0 else 100_000,
+        value=int(income["amount"]),
         step=10_000,
         key=f"income_amount_{i}",
         label_visibility="collapsed"
     )
 
-    income_period = st.sidebar.radio(
+    income["period"] = st.sidebar.radio(
         f"Periode {i}",
         ["Årlig", "Månedlig"],
         horizontal=True,
+        index=0 if income["period"] == "Årlig" else 1,
         key=f"income_period_{i}",
         label_visibility="collapsed"
     )
 
-    annualized = to_annual_income(income_amount, income_period)
+    col_a, col_b = st.sidebar.columns([1, 1])
+    with col_a:
+        if st.button(f"Fjern denne", key=f"remove_income_{i}"):
+            remove_income_idx = i
+    with col_b:
+        st.write("")
+
+    annualized = to_annual_income(income["amount"], income["period"])
     total_annual_income += annualized
 
     income_rows.append({
-        "Navn": income_name,
-        "Registrert beløp": format_nok(income_amount),
-        "Periode": income_period,
+        "Navn": income["name"],
+        "Registrert beløp": format_nok(income["amount"]),
+        "Periode": income["period"],
         "Årsinntekt": format_nok(annualized),
     })
 
+    st.sidebar.markdown("---")
+
+if remove_income_idx is not None and len(st.session_state.incomes) > 1:
+    st.session_state.incomes.pop(remove_income_idx)
+    st.rerun()
+
 if st.sidebar.button("Legg til inntekt"):
-    st.session_state.income_count += 1
+    st.session_state.incomes.append(
+        {"name": f"Inntekt {len(st.session_state.incomes)+1}", "amount": 100_000, "period": "Årlig"}
+    )
     st.rerun()
 
 st.sidebar.divider()
-st.sidebar.header("Gjeld og egenkapital")
+st.sidebar.header("Gjeld")
 
 other_debt = st.sidebar.number_input(
     "Annen gjeld (studielån, billån, kreditt, osv.)",
@@ -371,26 +391,16 @@ else:
 # -------------------------
 st.subheader("Nøkkeltall")
 
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric("Samlet årsinntekt", format_mill(total_annual_income), help=format_nok(total_annual_income))
 
 with col2:
-    st.metric("Lånekapasitet", format_mill(income_based_max_loan), help="Inntektsbasert: inntekt × multippel minus annen gjeld")
+    st.metric("Annen gjeld", format_mill(other_debt), help=format_nok(other_debt))
 
 with col3:
-    st.metric("Egenkapital", format_mill(equity), help=format_nok(equity))
-
-with col4:
-    st.metric("Total kjøpekraft", format_mill(total_buying_power), help="Lånekapasitet + egenkapital")
-
-with col5:
-    st.metric(
-        f"Mulig refinansiering etter {years_forward} år",
-        format_mill(actual_refinance_capacity_base),
-        help="Base scenario, justert for både belåningsgrad og inntektsbasert lånetak"
-    )
+    st.metric("Lånekapasitet før eiendom", format_mill(income_based_max_loan))
 
 st.divider()
 
