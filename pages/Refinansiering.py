@@ -2,11 +2,11 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Refinansieringskalkulator", layout="wide")
+st.set_page_config(page_title="Finansieringskalkulator", layout="wide")
 
-st.title("Refinansieringskalkulator")
+st.title("Finansieringskalkulator")
 st.write(
-    "Beregn estimert boligverdi, restgjeld og hvor mye du potensielt kan refinansiere etter x antall år."
+    "Beregn lånekapasitet ut fra inntekt, gjeld og egenkapital, og se mulig refinansiering av bolig etter x antall år."
 )
 
 
@@ -23,6 +23,12 @@ def format_mill(value: float) -> str:
         mill = value / 1_000_000
         return f"{mill:.3f}".rstrip("0").rstrip(".") + " mill"
     return format_nok(value)
+
+
+def to_annual_income(amount: float, period: str) -> float:
+    if period == "Månedlig":
+        return amount * 12
+    return amount
 
 
 def annuity_monthly_payment(principal: float, annual_rate_percent: float, years: int) -> float:
@@ -110,20 +116,94 @@ def property_value_projection(start_value: float, annual_growth_percent: float, 
     return values
 
 
+def get_remaining_debt(loan_df: pd.DataFrame, year: int, start_debt: float) -> float:
+    if year == 0:
+        return start_debt
+    month = year * 12
+    if month <= len(loan_df):
+        return float(loan_df.iloc[month - 1]["Restgjeld"])
+    return 0.0
+
+
 # -------------------------
 # Sidebar / input
 # -------------------------
-st.sidebar.header("Inndata")
+st.sidebar.header("Inntekter")
 
-purchase_price = st.sidebar.number_input(
-    "Kjøpesum / dagens verdi",
+num_incomes = st.sidebar.number_input(
+    "Antall inntekter",
+    min_value=1,
+    max_value=8,
+    value=2,
+    step=1,
+)
+
+income_rows = []
+total_annual_income = 0.0
+
+for i in range(num_incomes):
+    st.sidebar.markdown(f"**Inntekt {i+1}**")
+    income_name = st.sidebar.text_input(f"Navn på inntekt {i+1}", value=f"Inntekt {i+1}", key=f"income_name_{i}")
+    income_amount = st.sidebar.number_input(
+        f"Beløp for {income_name}",
+        min_value=0,
+        value=300_000 if i == 0 else 100_000,
+        step=10_000,
+        key=f"income_amount_{i}",
+    )
+    income_period = st.sidebar.selectbox(
+        f"Er {income_name} månedlig eller årlig?",
+        ["Årlig", "Månedlig"],
+        key=f"income_period_{i}",
+    )
+
+    annualized = to_annual_income(income_amount, income_period)
+    total_annual_income += annualized
+
+    income_rows.append({
+        "Navn": income_name,
+        "Registrert beløp": format_nok(income_amount),
+        "Periode": income_period,
+        "Årsinntekt": format_nok(annualized),
+    })
+
+st.sidebar.divider()
+st.sidebar.header("Gjeld og egenkapital")
+
+other_debt = st.sidebar.number_input(
+    "Annen gjeld (studielån, billån, kreditt, osv.)",
+    min_value=0,
+    value=0,
+    step=50_000,
+)
+
+equity = st.sidebar.number_input(
+    "Tilgjengelig egenkapital",
+    min_value=0,
+    value=500_000,
+    step=50_000,
+)
+
+income_multiple = st.sidebar.number_input(
+    "Inntektsmultippel",
+    min_value=0.0,
+    max_value=10.0,
+    value=5.0,
+    step=0.1,
+)
+
+st.sidebar.divider()
+st.sidebar.header("Bolig / eksisterende lån")
+
+property_value_today = st.sidebar.number_input(
+    "Boligens verdi i dag",
     min_value=0,
     value=3_250_000,
     step=50_000,
 )
 
-loan_amount = st.sidebar.number_input(
-    "Opprinnelig lånebeløp",
+current_loan_amount = st.sidebar.number_input(
+    "Lån på boligen i dag",
     min_value=0,
     value=2_700_000,
     step=50_000,
@@ -143,7 +223,7 @@ interest_rate = st.sidebar.number_input(
 )
 
 repayment_years = st.sidebar.number_input(
-    "Opprinnelig nedbetalingstid (år)",
+    "Nedbetalingstid (år)",
     min_value=1,
     max_value=40,
     value=30,
@@ -158,14 +238,6 @@ years_forward = st.sidebar.slider(
     step=1,
 )
 
-annual_growth_percent = st.sidebar.number_input(
-    "Årlig verdiutvikling (%)",
-    min_value=-10.0,
-    max_value=20.0,
-    value=3.0,
-    step=0.1,
-)
-
 refinance_ltv_percent = st.sidebar.slider(
     "Maks belåningsgrad ved refinansiering (%)",
     min_value=0,
@@ -173,6 +245,48 @@ refinance_ltv_percent = st.sidebar.slider(
     value=85,
     step=1,
 )
+
+st.sidebar.divider()
+st.sidebar.header("Verdiutvikling")
+
+growth_mode = st.sidebar.radio(
+    "Velg metode for verdiutvikling",
+    ["Fast prosent", "Slingring / scenario"],
+)
+
+if growth_mode == "Fast prosent":
+    annual_growth_percent = st.sidebar.number_input(
+        "Årlig verdiutvikling (%)",
+        min_value=-10.0,
+        max_value=20.0,
+        value=3.0,
+        step=0.1,
+    )
+    growth_low = annual_growth_percent
+    growth_base = annual_growth_percent
+    growth_high = annual_growth_percent
+else:
+    growth_low = st.sidebar.number_input(
+        "Lavt scenario (%)",
+        min_value=-15.0,
+        max_value=20.0,
+        value=1.0,
+        step=0.1,
+    )
+    growth_base = st.sidebar.number_input(
+        "Base scenario (%)",
+        min_value=-15.0,
+        max_value=20.0,
+        value=3.0,
+        step=0.1,
+    )
+    growth_high = st.sidebar.number_input(
+        "Høyt scenario (%)",
+        min_value=-15.0,
+        max_value=20.0,
+        value=5.0,
+        step=0.1,
+    )
 
 buffer_amount = st.sidebar.number_input(
     "Ønsket buffer (kr)",
@@ -185,28 +299,56 @@ buffer_amount = st.sidebar.number_input(
 # -------------------------
 # Beregninger
 # -------------------------
+income_based_max_loan = max(0.0, total_annual_income * income_multiple - other_debt)
+total_buying_power = income_based_max_loan + equity
+
 if loan_type == "Annuitetslån":
-    loan_df = annuity_schedule(loan_amount, interest_rate, repayment_years)
+    loan_df = annuity_schedule(current_loan_amount, interest_rate, repayment_years)
 else:
-    loan_df = serial_schedule(loan_amount, interest_rate, repayment_years)
+    loan_df = serial_schedule(current_loan_amount, interest_rate, repayment_years)
 
 loan_df["År"] = loan_df["Måned"] / 12
 
-selected_month = years_forward * 12
-if selected_month <= len(loan_df):
-    remaining_debt = loan_df.iloc[selected_month - 1]["Restgjeld"]
-else:
-    remaining_debt = 0.0
+remaining_debt = get_remaining_debt(loan_df, years_forward, current_loan_amount)
 
-property_values = property_value_projection(purchase_price, annual_growth_percent, years_forward)
-future_property_value = property_values[-1]
+property_values_low = property_value_projection(property_value_today, growth_low, years_forward)
+property_values_base = property_value_projection(property_value_today, growth_base, years_forward)
+property_values_high = property_value_projection(property_value_today, growth_high, years_forward)
 
-max_new_loan = future_property_value * (refinance_ltv_percent / 100)
-potential_refinance_amount = max(0, max_new_loan - remaining_debt)
-releasable_equity_after_buffer = max(0, potential_refinance_amount - buffer_amount)
+future_value_low = property_values_low[-1]
+future_value_base = property_values_base[-1]
+future_value_high = property_values_high[-1]
 
-current_ltv = (loan_amount / purchase_price * 100) if purchase_price > 0 else 0.0
-future_ltv_before_refi = (remaining_debt / future_property_value * 100) if future_property_value > 0 else 0.0
+max_new_loan_low = future_value_low * (refinance_ltv_percent / 100)
+max_new_loan_base = future_value_base * (refinance_ltv_percent / 100)
+max_new_loan_high = future_value_high * (refinance_ltv_percent / 100)
+
+refinance_room_low = max(0, max_new_loan_low - remaining_debt)
+refinance_room_base = max(0, max_new_loan_base - remaining_debt)
+refinance_room_high = max(0, max_new_loan_high - remaining_debt)
+
+releasable_after_buffer_low = max(0, refinance_room_low - buffer_amount)
+releasable_after_buffer_base = max(0, refinance_room_base - buffer_amount)
+releasable_after_buffer_high = max(0, refinance_room_high - buffer_amount)
+
+projected_income_headroom_low = max(0, income_based_max_loan - max_new_loan_low)
+projected_income_headroom_base = max(0, income_based_max_loan - max_new_loan_base)
+projected_income_headroom_high = max(0, income_based_max_loan - max_new_loan_high)
+
+actual_refinance_capacity_low = min(income_based_max_loan, max_new_loan_low) - remaining_debt
+actual_refinance_capacity_base = min(income_based_max_loan, max_new_loan_base) - remaining_debt
+actual_refinance_capacity_high = min(income_based_max_loan, max_new_loan_high) - remaining_debt
+
+actual_refinance_capacity_low = max(0, actual_refinance_capacity_low)
+actual_refinance_capacity_base = max(0, actual_refinance_capacity_base)
+actual_refinance_capacity_high = max(0, actual_refinance_capacity_high)
+
+actual_refinance_after_buffer_low = max(0, actual_refinance_capacity_low - buffer_amount)
+actual_refinance_after_buffer_base = max(0, actual_refinance_capacity_base - buffer_amount)
+actual_refinance_after_buffer_high = max(0, actual_refinance_capacity_high - buffer_amount)
+
+current_ltv = (current_loan_amount / property_value_today * 100) if property_value_today > 0 else 0.0
+future_ltv_base = (remaining_debt / future_value_base * 100) if future_value_base > 0 else 0.0
 
 if not loan_df.empty:
     first_payment = loan_df.iloc[0]["Terminbeløp"]
@@ -222,39 +364,34 @@ st.subheader("Nøkkeltall")
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
-    st.metric(
-        "Dagens verdi",
-        format_mill(purchase_price),
-        help=format_nok(purchase_price)
-    )
+    st.metric("Samlet årsinntekt", format_mill(total_annual_income), help=format_nok(total_annual_income))
 
 with col2:
-    st.metric(
-        f"Verdi etter {years_forward} år",
-        format_mill(future_property_value),
-        help=format_nok(future_property_value)
-    )
+    st.metric("Lånekapasitet", format_mill(income_based_max_loan), help="Inntektsbasert: inntekt × multippel minus annen gjeld")
 
 with col3:
-    st.metric(
-        f"Restgjeld etter {years_forward} år",
-        format_mill(remaining_debt),
-        help=format_nok(remaining_debt)
-    )
+    st.metric("Egenkapital", format_mill(equity), help=format_nok(equity))
 
 with col4:
-    st.metric(
-        "Mulig nytt maks lån",
-        format_mill(max_new_loan),
-        help=f"{refinance_ltv_percent} % av estimert boligverdi"
-    )
+    st.metric("Total kjøpekraft", format_mill(total_buying_power), help="Lånekapasitet + egenkapital")
 
 with col5:
     st.metric(
-        "Mulig refinansiering",
-        format_mill(potential_refinance_amount),
-        help="Estimert mulig økning i lån før buffer."
+        f"Mulig refinansiering etter {years_forward} år",
+        format_mill(actual_refinance_capacity_base),
+        help="Base scenario, justert for både belåningsgrad og inntektsbasert lånetak"
     )
+
+st.divider()
+
+
+# -------------------------
+# Inntektsoversikt
+# -------------------------
+st.subheader("Inntektsoversikt")
+
+income_df = pd.DataFrame(income_rows)
+st.dataframe(income_df, use_container_width=True, hide_index=True)
 
 st.divider()
 
@@ -270,28 +407,34 @@ with summary_left:
     summary_df = pd.DataFrame(
         {
             "Post": [
-                "Dagens verdi",
-                "Opprinnelig lånebeløp",
+                "Samlet årsinntekt",
+                "Valgt inntektsmultippel",
+                "Annen gjeld",
+                "Prosjektert lånekapasitet",
+                "Egenkapital",
+                "Total kjøpekraft",
+                "Boligverdi i dag",
+                "Boliglån i dag",
                 "Lånetype",
-                "Rente",
+                "Nominell rente",
                 "Nedbetalingstid",
                 "Første terminbeløp",
                 "Dagens belåningsgrad",
-                f"Estimert verdi etter {years_forward} år",
-                f"Restgjeld etter {years_forward} år",
-                f"Belåningsgrad etter {years_forward} år",
             ],
             "Verdi": [
-                format_nok(purchase_price),
-                format_nok(loan_amount),
+                format_nok(total_annual_income),
+                f"{income_multiple:.1f}x",
+                format_nok(other_debt),
+                format_nok(income_based_max_loan),
+                format_nok(equity),
+                format_nok(total_buying_power),
+                format_nok(property_value_today),
+                format_nok(current_loan_amount),
                 loan_type,
                 f"{interest_rate:.2f} %",
                 f"{repayment_years} år",
                 format_nok(first_payment),
                 f"{current_ltv:.1f} %",
-                format_nok(future_property_value),
-                format_nok(remaining_debt),
-                f"{future_ltv_before_refi:.1f} %",
             ]
         }
     )
@@ -300,20 +443,32 @@ with summary_left:
 with summary_right:
     refi_df = pd.DataFrame(
         {
-            "Post": [
-                "Maks belåningsgrad ved refinansiering",
-                "Mulig nytt maks lån",
-                "Mulig refinansierbart beløp",
-                "Valgt buffer",
-                "Frigjørbar EK etter buffer",
+            "Scenario": ["Lav", "Base", "Høy"],
+            f"Boligverdi etter {years_forward} år": [
+                format_nok(future_value_low),
+                format_nok(future_value_base),
+                format_nok(future_value_high),
             ],
-            "Verdi": [
-                f"{refinance_ltv_percent:.0f} %",
-                format_nok(max_new_loan),
-                format_nok(potential_refinance_amount),
-                format_nok(buffer_amount),
-                format_nok(releasable_equity_after_buffer),
-            ]
+            f"Restgjeld etter {years_forward} år": [
+                format_nok(remaining_debt),
+                format_nok(remaining_debt),
+                format_nok(remaining_debt),
+            ],
+            "Maks lån ved LTV-grense": [
+                format_nok(max_new_loan_low),
+                format_nok(max_new_loan_base),
+                format_nok(max_new_loan_high),
+            ],
+            "Faktisk mulig refinansiering": [
+                format_nok(actual_refinance_capacity_low),
+                format_nok(actual_refinance_capacity_base),
+                format_nok(actual_refinance_capacity_high),
+            ],
+            "Etter buffer": [
+                format_nok(actual_refinance_after_buffer_low),
+                format_nok(actual_refinance_after_buffer_base),
+                format_nok(actual_refinance_after_buffer_high),
+            ],
         }
     )
     st.dataframe(refi_df, use_container_width=True, hide_index=True)
@@ -324,22 +479,24 @@ st.divider()
 # -------------------------
 # Beskjed / tolkning
 # -------------------------
-if potential_refinance_amount > 0:
+if actual_refinance_capacity_base > 0:
     st.success(
-        f"Basert på forutsetningene kan du potensielt øke lånet med omtrent {format_nok(potential_refinance_amount)} etter {years_forward} år."
+        f"Basert på base scenario kan du potensielt refinansiere omtrent {format_nok(actual_refinance_capacity_base)} etter {years_forward} år."
     )
 else:
     st.warning(
-        "Basert på forutsetningene ser det ikke ut til at du har rom for ekstra refinansiering ennå."
+        "Basert på base scenario ser det ikke ut til at du har rom for ekstra refinansiering ennå."
     )
 
 st.markdown(
     f"""
-- **Estimert boligverdi etter {years_forward} år:** {format_nok(future_property_value)}
-- **Restgjeld etter {years_forward} år:** {format_nok(remaining_debt)}
-- **Mulig nytt maks lån ved {refinance_ltv_percent:.0f} % belåning:** {format_nok(max_new_loan)}
-- **Mulig refinansierbart beløp:** {format_nok(potential_refinance_amount)}
-- **Frigjørbar EK etter buffer på {format_nok(buffer_amount)}:** {format_nok(releasable_equity_after_buffer)}
+- **Samlet årsinntekt:** {format_nok(total_annual_income)}
+- **Prosjektert lånekapasitet:** {format_nok(income_based_max_loan)}
+- **Tilgjengelig egenkapital:** {format_nok(equity)}
+- **Total kjøpekraft:** {format_nok(total_buying_power)}
+- **Estimert restgjeld etter {years_forward} år:** {format_nok(remaining_debt)}
+- **Mulig refinansiering i base scenario:** {format_nok(actual_refinance_capacity_base)}
+- **Mulig refinansiering etter buffer:** {format_nok(actual_refinance_after_buffer_base)}
 """
 )
 
@@ -352,21 +509,16 @@ st.divider()
 st.subheader("Boligverdi vs. restgjeld over tid")
 
 years_axis = list(range(0, years_forward + 1))
-remaining_debt_by_year = []
-
-for year in years_axis:
-    month = year * 12
-    if month == 0:
-        remaining_debt_by_year.append(loan_amount)
-    elif month <= len(loan_df):
-        remaining_debt_by_year.append(loan_df.iloc[month - 1]["Restgjeld"])
-    else:
-        remaining_debt_by_year.append(0.0)
+remaining_debt_by_year = [get_remaining_debt(loan_df, year, current_loan_amount) for year in years_axis]
 
 fig, ax = plt.subplots(figsize=(11, 5.5))
 
-ax.plot(years_axis, property_values, label="Estimert boligverdi", linewidth=2)
+ax.plot(years_axis, property_values_base, label="Boligverdi (base)", linewidth=2)
 ax.plot(years_axis, remaining_debt_by_year, label="Restgjeld", linewidth=2)
+
+if growth_mode == "Slingring / scenario":
+    ax.plot(years_axis, property_values_low, label="Boligverdi (lav)", linestyle="--", linewidth=1.8)
+    ax.plot(years_axis, property_values_high, label="Boligverdi (høy)", linestyle="--", linewidth=1.8)
 
 ax.set_xlabel("År")
 ax.set_ylabel("Beløp (kr)")
@@ -387,30 +539,26 @@ st.divider()
 # -------------------------
 # År-for-år tabell
 # -------------------------
-st.subheader("År-for-år oversikt")
+st.subheader("År-for-år oversikt (base scenario)")
 
 year_rows = []
 
 for year in years_axis:
-    property_value = property_values[year]
-
-    if year == 0:
-        debt = loan_amount
-    else:
-        month = year * 12
-        debt = loan_df.iloc[month - 1]["Restgjeld"] if month <= len(loan_df) else 0.0
-
-    available_loan = property_value * (refinance_ltv_percent / 100)
-    refinance_room = max(0, available_loan - debt)
-    equity = property_value - debt
+    property_value = property_values_base[year]
+    debt = get_remaining_debt(loan_df, year, current_loan_amount)
+    available_loan_ltv = property_value * (refinance_ltv_percent / 100)
+    allowed_total_loan = min(income_based_max_loan, available_loan_ltv)
+    refinance_room = max(0, allowed_total_loan - debt)
+    equity_in_home = property_value - debt
 
     year_rows.append({
         "År": year,
         "Estimert boligverdi": format_nok(property_value),
         "Restgjeld": format_nok(debt),
-        "Egenkapital": format_nok(equity),
-        "Maks lån ved refinansiering": format_nok(available_loan),
-        "Mulig refinansierbart beløp": format_nok(refinance_room),
+        "Egenkapital i bolig": format_nok(equity_in_home),
+        "Maks lån ved LTV": format_nok(available_loan_ltv),
+        "Maks lån justert for inntekt": format_nok(allowed_total_loan),
+        "Mulig refinansiering": format_nok(refinance_room),
     })
 
 year_df = pd.DataFrame(year_rows)
@@ -425,14 +573,22 @@ st.divider()
 with st.expander("Hva betyr tallene?"):
     st.write(
         """
-**Estimert boligverdi** = dagens verdi fremskrevet med valgt årlig verdiutvikling.
+**Samlet årsinntekt** = summen av alle inntekter, omregnet til årsbasis.
 
-**Restgjeld** = hvor mye av lånet som gjenstår etter valgt antall år, basert på valgt lånetype, rente og nedbetalingstid.
+**Prosjektert lånekapasitet** = årsinntekt × valgt inntektsmultippel minus annen gjeld.
 
-**Mulig nytt maks lån** = hvor mye banken teoretisk kan la deg låne ved valgt belåningsgrad på estimert boligverdi.
+**Total kjøpekraft** = lånekapasitet + tilgjengelig egenkapital.
 
-**Mulig refinansierbart beløp** = nytt maks lån minus restgjeld.
+**Restgjeld** = hvor mye av boliglånet som gjenstår etter valgt antall år.
 
-**Frigjørbar EK etter buffer** = refinansierbart beløp minus den bufferen du ønsker å holde igjen.
+**Maks lån ved LTV** = hvor mye banken teoretisk kan tillate basert på valgt belåningsgrad av boligverdien.
+
+**Maks lån justert for inntekt** = laveste av:
+1. inntektsbasert lånekapasitet
+2. maks lån basert på belåningsgrad
+
+**Mulig refinansiering** = hvor mye mer lån du potensielt kan ta opp sammenlignet med restgjelden på det tidspunktet.
+
+**Etter buffer** = mulig refinansiering minus ønsket buffer.
 """
     )
