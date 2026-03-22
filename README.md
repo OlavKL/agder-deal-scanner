@@ -1,2 +1,2 @@
-# agder-deal-scanner
-Real estate investment scanner for Agder that analyzes property listings and ranks deals based on yield, cashflow and price deviation.
+# Rental property analyzer
+Rental-focused real estate tool, with additional financing and value models built from curiosity and reflection.
