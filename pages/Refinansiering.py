@@ -401,7 +401,11 @@ st.divider()
 # -------------------------
 st.subheader("Eiendomsanalyse")
 
-c1, c2, c3, c4, c5 = st.columns(5)
+future_available_loan_capacity = max(0.0, total_loan_capacity_after_rent - remaining_debt)
+actual_possible_loan_increase = min(future_available_loan_capacity, extractable_equity)
+is_future_capped = remaining_debt >= total_loan_capacity_after_rent
+
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 
 with c1:
     st.metric(f"Verdi etter {years_forward} år", format_mill(future_property_value))
@@ -417,7 +421,10 @@ with c4:
 
 with c5:
     st.metric("Ledig lånekapasitet", format_mill(future_available_loan_capacity))
-    
+
+with c6:
+    st.metric("Faktisk mulig låneøkning", format_mill(actual_possible_loan_increase))
+
 st.markdown(
     f"""
 - **Kjøpsår:** {purchase_year}
@@ -429,9 +436,20 @@ st.markdown(
 - **Lånekapasitet før leie:** {format_nok(income_based_max_loan)}
 - **Økning fra månedlig leie × {int(rent_factor)}:** {format_nok(rent_based_extra_capacity)}
 - **Total lånekapasitet:** {format_nok(total_loan_capacity_after_rent)}
+- **Ledig lånekapasitet etter {years_forward} år:** {format_nok(future_available_loan_capacity)}
 - **Mulig egenkapital å hente ut etter {years_forward} år:** {format_nok(extractable_equity)}
+- **Faktisk mulig låneøkning etter {years_forward} år:** {format_nok(actual_possible_loan_increase)}
 """
 )
+
+if is_future_capped:
+    st.warning(
+        f"Du ser ut til å være cappet etter {years_forward} år. Restgjelden på {format_nok(remaining_debt)} er da høyere enn eller lik total lånekapasitet på {format_nok(total_loan_capacity_after_rent)}."
+    )
+else:
+    st.success(
+        f"Etter {years_forward} år har du estimert ledig lånekapasitet på {format_nok(future_available_loan_capacity)}. Faktisk mulig låneøkning er estimert til {format_nok(actual_possible_loan_increase)}."
+    )
 
 st.divider()
 
